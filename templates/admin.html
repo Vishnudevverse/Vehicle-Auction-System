@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel — AutoBid{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0">
+                <i class="bi bi-shield-lock-fill text-primary me-2"></i>Admin Dashboard
+            </h2>
+            <span class="badge bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
+                <i class="bi bi-person-gear me-1"></i>{{ user.username }}
+            </span>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm bg-primary bg-gradient text-white">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-car-front display-4"></i>
+                        <h2 class="fw-bold mt-2 mb-0">{{ vehicles|length }}</h2>
+                        <p class="mb-0 opacity-75">Total Vehicles</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm bg-success bg-gradient text-white">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-people display-4"></i>
+                        <h2 class="fw-bold mt-2 mb-0">{{ users|length }}</h2>
+                        <p class="mb-0 opacity-75">Registered Users</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm bg-warning bg-gradient text-dark">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-hammer display-4"></i>
+                        <h2 class="fw-bold mt-2 mb-0">{{ bids|length }}</h2>
+                        <p class="mb-0 opacity-75">Total Bids</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Add Vehicle Form ─────────────── -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body-tertiary d-flex align-items-center">
+                <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add New Vehicle</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="/admin/add-vehicle" method="POST" enctype="multipart/form-data">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Title</label>
+                            <input type="text" name="title" class="form-control"
+                                   placeholder="e.g. 2024 Tesla Model 3" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Starting Price ($)</label>
+                            <input type="number" name="starting_price" class="form-control"
+                                   step="0.01" min="1" placeholder="50000" required />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Auction End</label>
+                            <input type="datetime-local" name="auction_end" class="form-control" required />
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control" rows="2"
+                                      placeholder="Brief vehicle description…"></textarea>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Vehicle Image</label>
+                            <input type="file" name="image" class="form-control" accept="image/*" />
+                            <small class="text-body-secondary">Optional — placeholder shown if empty</small>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="bi bi-plus-lg me-1"></i>Add Vehicle
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ── Vehicles Table ───────────────── -->
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-body-tertiary">
+                <h5 class="mb-0"><i class="bi bi-car-front me-2"></i>Vehicles</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Image</th>
+                                <th>Title</th>
+                                <th>Starting</th>
+                                <th>Current</th>
+                                <th>Auction End</th>
+                                <th>Owner</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in vehicles %}
+                            <tr>
+                                <td>{{ v.id }}</td>
+                                <td>
+                                    {% if v.image_url %}
+                                    <img src="{{ v.image_url }}" alt="" class="rounded"
+                                         style="width:48px;height:36px;object-fit:cover;" />
+                                    {% else %}
+                                    <span class="badge bg-body-secondary text-body-secondary">
+                                        <i class="bi bi-image"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold">{{ v.title }}</td>
+                                <td>${{ "{:,.2f}".format(v.starting_price) }}</td>
+                                <td class="text-success fw-bold">${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>{{ v.auction_end.strftime('%b %d, %Y %H:%M') }}</td>
+                                <td>
+                                    {% if v.owner %}
+                                        <span class="badge bg-info-subtle text-info-emphasis">
+                                            {{ v.owner.username }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-body-secondary">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if v.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Ended</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <!-- Edit auction period -->
+                                        <button class="btn btn-sm btn-outline-warning"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#editModal{{ v.id }}"
+                                                title="Edit auction period">
+                                            <i class="bi bi-clock-history"></i>
+                                        </button>
+                                        <!-- Delete -->
+                                        <form action="/admin/delete-vehicle/{{ v.id }}"
+                                              method="POST"
+                                              onsubmit="return confirm('Delete {{ v.title }}? This cannot be undone.');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    title="Remove vehicle">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Edit Auction Period Modal -->
+                            <div class="modal fade" id="editModal{{ v.id }}" tabindex="-1">
+                                <div class="modal-dialog modal-sm modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <form action="/admin/update-auction/{{ v.id }}" method="POST">
+                                            <div class="modal-header">
+                                                <h6 class="modal-title">Edit Auction End</h6>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <label class="form-label">New End Date/Time</label>
+                                                <input type="datetime-local" name="auction_end"
+                                                       class="form-control" required
+                                                       value="{{ v.auction_end.strftime('%Y-%m-%dT%H:%M') }}" />
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button class="btn btn-primary btn-sm">Save</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Recent Bids Table ────────────── -->
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-body-tertiary">
+                <h5 class="mb-0"><i class="bi bi-hammer me-2"></i>Recent Bids</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>User</th>
+                                <th>Vehicle</th>
+                                <th>Amount</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for b in bids %}
+                            <tr>
+                                <td>{{ b.id }}</td>
+                                <td>{{ b.user.username }}</td>
+                                <td>{{ b.vehicle.title }}</td>
+                                <td class="text-success fw-bold">${{ "{:,.2f}".format(b.amount) }}</td>
+                                <td>{{ b.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</section>
+{% endblock %}

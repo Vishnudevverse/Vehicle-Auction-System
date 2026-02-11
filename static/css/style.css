@@ -1,0 +1,118 @@
+/* ── Vehicle Auction System — Custom Styles ─── */
+
+/* Hero section */
+.hero-section {
+    background: linear-gradient(135deg,
+        rgba(13, 110, 253, 0.08) 0%,
+        rgba(25, 135, 84, 0.06) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Vehicle cards */
+.vehicle-card {
+    border-radius: 1rem;
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.vehicle-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25) !important;
+}
+
+.card-img-wrapper {
+    height: 220px;
+}
+
+.vehicle-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+}
+
+.vehicle-card:hover .vehicle-img {
+    transform: scale(1.05);
+}
+
+/* Bid button pulse */
+.bid-btn {
+    position: relative;
+    overflow: hidden;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.bid-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(-100%);
+    transition: transform 0.35s ease;
+}
+
+.bid-btn:hover::after {
+    transform: translateX(0);
+}
+
+/* Countdown badge */
+.countdown {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Navbar brand */
+.navbar-brand {
+    font-size: 1.4rem;
+    letter-spacing: -0.01em;
+}
+
+/* Modal */
+#bidModal .modal-header {
+    border-radius: 0;
+}
+
+/* Footer */
+footer {
+    font-size: 0.9rem;
+}
+
+/* Smooth scroll */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Stats cards on admin */
+.card.bg-primary,
+.card.bg-success,
+.card.bg-warning {
+    border-radius: 1rem;
+    transition: transform 0.2s ease;
+}
+
+.card.bg-primary:hover,
+.card.bg-success:hover,
+.card.bg-warning:hover {
+    transform: translateY(-4px);
+}
+
+/* Table tweaks */
+.table > :not(caption) > * > * {
+    padding: 0.85rem 1rem;
+}
+
+/* ── Real-time price flash animation ───────── */
+@keyframes priceFlash {
+    0%   { color: #ffc107; transform: scale(1.15); }
+    50%  { color: #20c997; }
+    100% { color: #198754; transform: scale(1); }
+}
+
+.price-flash {
+    animation: priceFlash 1.2s ease;
+}
+
+/* ── Vehicle removal fade-out ─────────────── */
+.vehicle-col {
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
