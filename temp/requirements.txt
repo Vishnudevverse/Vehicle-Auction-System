@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+mysql-connector-python
+jinja2
+python-multipart
+python-dotenv
+itsdangerous
+websockets
