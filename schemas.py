@@ -39,6 +39,7 @@ class VehicleOut(BaseModel):
     current_price: Decimal
     auction_end: datetime
     is_active: bool
+    is_deleted: bool = False
     owner_id: Optional[int] = None
 
     class Config:

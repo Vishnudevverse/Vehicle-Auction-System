@@ -16,16 +16,25 @@
 
         <!-- Stats Row -->
         <div class="row g-4 mb-5">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card border-0 shadow-sm bg-primary bg-gradient text-white">
                     <div class="card-body text-center py-4">
-                        <i class="bi bi-car-front display-4"></i>
-                        <h2 class="fw-bold mt-2 mb-0">{{ vehicles|length }}</h2>
-                        <p class="mb-0 opacity-75">Total Vehicles</p>
+                        <i class="bi bi-broadcast display-4"></i>
+                        <h2 class="fw-bold mt-2 mb-0">{{ active_vehicles|length }}</h2>
+                        <p class="mb-0 opacity-75">Active Auctions</p>
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm bg-secondary bg-gradient text-white">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-flag-fill display-4"></i>
+                        <h2 class="fw-bold mt-2 mb-0">{{ finished_vehicles|length }}</h2>
+                        <p class="mb-0 opacity-75">Finished Auctions</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
                 <div class="card border-0 shadow-sm bg-success bg-gradient text-white">
                     <div class="card-body text-center py-4">
                         <i class="bi bi-people display-4"></i>
@@ -34,7 +43,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="card border-0 shadow-sm bg-warning bg-gradient text-dark">
                     <div class="card-body text-center py-4">
                         <i class="bi bi-hammer display-4"></i>
@@ -87,10 +96,50 @@
             </div>
         </div>
 
-        <!-- ── Vehicles Table ───────────────── -->
+        <!-- ── Search & Filter Bar ──────────── -->
         <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body py-3">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control border-start-0" id="adminSearchInput"
+                                   placeholder="Search vehicles…" />
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="adminFilter" id="adminFilterAll" value="all" checked>
+                            <label class="btn btn-outline-primary" for="adminFilterAll">
+                                <i class="bi bi-grid me-1"></i>All ({{ active_vehicles|length + finished_vehicles|length }})
+                            </label>
+                            <input type="radio" class="btn-check" name="adminFilter" id="adminFilterActive" value="active">
+                            <label class="btn btn-outline-success" for="adminFilterActive">
+                                <i class="bi bi-broadcast me-1"></i>Active ({{ active_vehicles|length }})
+                            </label>
+                            <input type="radio" class="btn-check" name="adminFilter" id="adminFilterFinished" value="finished">
+                            <label class="btn btn-outline-secondary" for="adminFilterFinished">
+                                <i class="bi bi-flag-fill me-1"></i>Finished ({{ finished_vehicles|length }})
+                            </label>
+                            <input type="radio" class="btn-check" name="adminFilter" id="adminFilterDeleted" value="deleted">
+                            <label class="btn btn-outline-danger" for="adminFilterDeleted">
+                                <i class="bi bi-trash3 me-1"></i>Deleted ({{ deleted_vehicles|length }})
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Active Vehicles Table ────────── -->
+        <div class="card border-0 shadow-sm mb-4 admin-table-section" data-section="active">
             <div class="card-header bg-body-tertiary">
-                <h5 class="mb-0"><i class="bi bi-car-front me-2"></i>Vehicles</h5>
+                <h5 class="mb-0">
+                    <i class="bi bi-broadcast text-success me-2"></i>Active Auctions
+                    <span class="badge bg-success ms-2">{{ active_vehicles|length }}</span>
+                </h5>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -103,14 +152,13 @@
                                 <th>Starting</th>
                                 <th>Current</th>
                                 <th>Auction End</th>
-                                <th>Owner</th>
                                 <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for v in vehicles %}
-                            <tr>
+                            {% for v in active_vehicles %}
+                            <tr class="admin-vehicle-row" data-title="{{ v.title|lower }}">
                                 <td>{{ v.id }}</td>
                                 <td>
                                     {% if v.image_url %}
@@ -126,35 +174,18 @@
                                 <td>${{ "{:,.2f}".format(v.starting_price) }}</td>
                                 <td class="text-success fw-bold">${{ "{:,.2f}".format(v.current_price) }}</td>
                                 <td>{{ v.auction_end.strftime('%b %d, %Y %H:%M') }}</td>
-                                <td>
-                                    {% if v.owner %}
-                                        <span class="badge bg-info-subtle text-info-emphasis">
-                                            {{ v.owner.username }}
-                                        </span>
-                                    {% else %}
-                                        <span class="text-body-secondary">—</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if v.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">Ended</span>
-                                    {% endif %}
-                                </td>
+                                <td><span class="badge bg-success">Active</span></td>
                                 <td>
                                     <div class="d-flex gap-1">
-                                        <!-- Edit auction period -->
                                         <button class="btn btn-sm btn-outline-warning"
                                                 data-bs-toggle="modal"
                                                 data-bs-target="#editModal{{ v.id }}"
                                                 title="Edit auction period">
                                             <i class="bi bi-clock-history"></i>
                                         </button>
-                                        <!-- Delete -->
                                         <form action="/admin/delete-vehicle/{{ v.id }}"
                                               method="POST"
-                                              onsubmit="return confirm('Delete {{ v.title }}? This cannot be undone.');">
+                                              onsubmit="return confirm('Delete {{ v.title }}? Vehicle will be removed from listings but winners keep their records.');">
                                             <button type="submit" class="btn btn-sm btn-outline-danger"
                                                     title="Remove vehicle">
                                                 <i class="bi bi-trash3"></i>
@@ -190,13 +221,205 @@
                         </tbody>
                     </table>
                 </div>
+                {% if not active_vehicles %}
+                <div class="text-center py-4 text-body-secondary">
+                    <i class="bi bi-inbox me-1"></i>No active auctions
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ── Finished Vehicles Table ──────── -->
+        <div class="card border-0 shadow-sm mb-4 admin-table-section" data-section="finished">
+            <div class="card-header bg-body-tertiary">
+                <h5 class="mb-0">
+                    <i class="bi bi-flag-fill text-secondary me-2"></i>Finished Auctions
+                    <span class="badge bg-secondary ms-2">{{ finished_vehicles|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Image</th>
+                                <th>Title</th>
+                                <th>Starting</th>
+                                <th>Final Price</th>
+                                <th>Auction Ended</th>
+                                <th>Winner</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in finished_vehicles %}
+                            <tr class="admin-vehicle-row" data-title="{{ v.title|lower }}">
+                                <td>{{ v.id }}</td>
+                                <td>
+                                    {% if v.image_url %}
+                                    <img src="{{ v.image_url }}" alt="" class="rounded"
+                                         style="width:48px;height:36px;object-fit:cover;" />
+                                    {% else %}
+                                    <span class="badge bg-body-secondary text-body-secondary">
+                                        <i class="bi bi-image"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold">{{ v.title }}</td>
+                                <td>${{ "{:,.2f}".format(v.starting_price) }}</td>
+                                <td class="text-success fw-bold">${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>{{ v.auction_end.strftime('%b %d, %Y %H:%M') }}</td>
+                                <td>
+                                    {% if v.owner %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-trophy-fill me-1"></i>{{ v.owner.username }}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-body-secondary text-body-secondary">No bids</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#editModal{{ v.id }}"
+                                                title="Restart auction with new end time">
+                                            <i class="bi bi-arrow-repeat"></i>
+                                        </button>
+                                        <form action="/admin/delete-vehicle/{{ v.id }}"
+                                              method="POST"
+                                              onsubmit="return confirm('Delete {{ v.title }}? Winner will still keep the vehicle in their collection.');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    title="Delete vehicle">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <!-- Edit / Restart Auction Modal -->
+                            <div class="modal fade" id="editModal{{ v.id }}" tabindex="-1">
+                                <div class="modal-dialog modal-sm modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <form action="/admin/update-auction/{{ v.id }}" method="POST">
+                                            <div class="modal-header">
+                                                <h6 class="modal-title">
+                                                    <i class="bi bi-arrow-repeat me-1"></i>Restart Auction
+                                                </h6>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="small text-body-secondary mb-2">
+                                                    Setting a future date will reactivate this auction and clear the previous winner.
+                                                </p>
+                                                <label class="form-label">New End Date/Time</label>
+                                                <input type="datetime-local" name="auction_end"
+                                                       class="form-control" required
+                                                       value="{{ v.auction_end.strftime('%Y-%m-%dT%H:%M') }}" />
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button class="btn btn-primary btn-sm">
+                                                    <i class="bi bi-arrow-repeat me-1"></i>Restart
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not finished_vehicles %}
+                <div class="text-center py-4 text-body-secondary">
+                    <i class="bi bi-hourglass me-1"></i>No finished auctions yet
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ── Deleted Vehicles Table ───────── -->
+        <div class="card border-0 shadow-sm mb-4 admin-table-section" data-section="deleted" style="display:none;">
+            <div class="card-header bg-body-tertiary">
+                <h5 class="mb-0">
+                    <i class="bi bi-trash3 text-danger me-2"></i>Deleted Vehicles
+                    <span class="badge bg-danger ms-2">{{ deleted_vehicles|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Image</th>
+                                <th>Title</th>
+                                <th>Final Price</th>
+                                <th>Winner</th>
+                                <th>Info</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for v in deleted_vehicles %}
+                            <tr class="admin-vehicle-row" data-title="{{ v.title|lower }}">
+                                <td>{{ v.id }}</td>
+                                <td>
+                                    {% if v.image_url %}
+                                    <img src="{{ v.image_url }}" alt="" class="rounded"
+                                         style="width:48px;height:36px;object-fit:cover;filter:grayscale(100%);" />
+                                    {% else %}
+                                    <span class="badge bg-body-secondary text-body-secondary">
+                                        <i class="bi bi-image"></i>
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="fw-semibold text-decoration-line-through text-body-secondary">{{ v.title }}</td>
+                                <td>${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>
+                                    {% if v.owner %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="bi bi-trophy-fill me-1"></i>{{ v.owner.username }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-body-secondary">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-trash3 me-1"></i>Deleted
+                                    </span>
+                                    {% if v.owner %}
+                                    <small class="text-body-secondary d-block mt-1">
+                                        Winner still has this vehicle
+                                    </small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not deleted_vehicles %}
+                <div class="text-center py-4 text-body-secondary">
+                    <i class="bi bi-check-circle me-1"></i>No deleted vehicles
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <!-- ── Recent Bids Table ────────────── -->
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-body-tertiary">
+            <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-hammer me-2"></i>Recent Bids</h5>
+                <div class="input-group" style="max-width:250px;">
+                    <span class="input-group-text bg-transparent border-end-0" style="padding:0.25rem 0.5rem;">
+                        <i class="bi bi-search small"></i>
+                    </span>
+                    <input type="text" class="form-control form-control-sm border-start-0" id="bidSearchInput"
+                           placeholder="Search bids…" />
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -210,11 +433,15 @@
                                 <th>Date</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="bidTableBody">
                             {% for b in bids %}
-                            <tr>
+                            <tr class="bid-row" data-search="{{ b.user.username|lower }} {{ b.vehicle.title|lower }}">
                                 <td>{{ b.id }}</td>
-                                <td>{{ b.user.username }}</td>
+                                <td>
+                                    <span class="badge bg-info-subtle text-info-emphasis">
+                                        <i class="bi bi-person me-1"></i>{{ b.user.username }}
+                                    </span>
+                                </td>
                                 <td>{{ b.vehicle.title }}</td>
                                 <td class="text-success fw-bold">${{ "{:,.2f}".format(b.amount) }}</td>
                                 <td>{{ b.created_at.strftime('%b %d, %Y %H:%M') }}</td>
@@ -223,9 +450,58 @@
                         </tbody>
                     </table>
                 </div>
+                {% if not bids %}
+                <div class="text-center py-4 text-body-secondary">
+                    <i class="bi bi-inbox me-1"></i>No bids yet
+                </div>
+                {% endif %}
             </div>
         </div>
 
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Admin search & filter logic ──
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('adminSearchInput');
+    const filterRadios = document.querySelectorAll('input[name="adminFilter"]');
+    const sections = document.querySelectorAll('.admin-table-section');
+    const bidSearch = document.getElementById('bidSearchInput');
+
+    function applyFilter() {
+        const query = (searchInput?.value || '').toLowerCase().trim();
+        const filter = document.querySelector('input[name="adminFilter"]:checked')?.value || 'all';
+
+        sections.forEach(sec => {
+            const secType = sec.dataset.section;
+            if (filter === 'all') {
+                sec.style.display = (secType === 'deleted') ? 'none' : '';
+            } else {
+                sec.style.display = (secType === filter) ? '' : 'none';
+            }
+
+            if (sec.style.display !== 'none') {
+                sec.querySelectorAll('.admin-vehicle-row').forEach(row => {
+                    const title = row.dataset.title || '';
+                    row.style.display = (!query || title.includes(query)) ? '' : 'none';
+                });
+            }
+        });
+    }
+
+    searchInput?.addEventListener('input', applyFilter);
+    filterRadios.forEach(r => r.addEventListener('change', applyFilter));
+
+    bidSearch?.addEventListener('input', () => {
+        const q = bidSearch.value.toLowerCase().trim();
+        document.querySelectorAll('.bid-row').forEach(row => {
+            const data = row.dataset.search || '';
+            row.style.display = (!q || data.includes(q)) ? '' : 'none';
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -30,6 +30,7 @@ CREATE TABLE vehicles (
     current_price  DECIMAL(12,2)  NOT NULL,
     auction_end    DATETIME       NOT NULL,
     is_active      BOOLEAN        NOT NULL DEFAULT TRUE,
+    is_deleted     BOOLEAN        NOT NULL DEFAULT FALSE,
     owner_id       INT            DEFAULT NULL,
     created_at     DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL

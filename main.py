@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from decimal import Decimal
 from datetime import datetime
 from typing import List, Optional
-import os, json, uuid, shutil
+import os, json, uuid, shutil, secrets
 
 from database import engine, get_db, Base
 from models import User, Vehicle, Bid
@@ -29,6 +29,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# One-time token so only the GUI window can auto-login as admin
+# When launched via `python main.py`, the token is set as an env var
+# so the same value is used by both the GUI and the server.
+GUI_TOKEN: str = os.environ.get("_AUTOBID_GUI_TOKEN", secrets.token_urlsafe(32))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -86,7 +91,8 @@ def finalize_auctions(db: Session):
     now = datetime.now()
     expired = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == True, Vehicle.auction_end <= now)
+        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False,
+                Vehicle.auction_end <= now)
         .all()
     )
     for v in expired:
@@ -111,12 +117,37 @@ def finalize_auctions(db: Session):
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, db: Session = Depends(get_db)):
     finalize_auctions(db)
-    vehicles = db.query(Vehicle).filter(Vehicle.is_active == True).all()
+    vehicles = (
+        db.query(Vehicle)
+        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .all()
+    )
+    finished = (
+        db.query(Vehicle)
+        .filter(Vehicle.is_active == False, Vehicle.is_deleted == False)
+        .order_by(Vehicle.auction_end.desc())
+        .all()
+    )
     user = get_current_user(request, db)
+
+    # Build a dict of vehicle_id -> highest bidder user_id
+    highest_bidders = {}
+    for v in vehicles:
+        top = (
+            db.query(Bid)
+            .filter(Bid.vehicle_id == v.id)
+            .order_by(Bid.amount.desc())
+            .first()
+        )
+        if top:
+            highest_bidders[v.id] = top.user_id
+
     return templates.TemplateResponse("index.html", {
         "request": request,
         "vehicles": vehicles,
+        "finished": finished,
         "user": user,
+        "highest_bidders": highest_bidders,
     })
 
 
@@ -198,12 +229,29 @@ def my_vehicles(request: Request, db: Session = Depends(get_db)):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     finalize_auctions(db)
-    owned = db.query(Vehicle).filter(Vehicle.owner_id == user.id).all()
+    owned = (
+        db.query(Vehicle)
+        .filter(Vehicle.owner_id == user.id, Vehicle.is_active == False)
+        .all()
+    )
     return templates.TemplateResponse("my_vehicles.html", {
         "request": request,
         "user": user,
         "vehicles": owned,
     })
+
+
+# ── Admin: GUI auto-login (token protected) ───
+@app.get("/admin/gui-login", response_class=HTMLResponse)
+def admin_gui_login(request: Request, token: str = "", db: Session = Depends(get_db)):
+    """Called once by the desktop GUI window to establish an admin session."""
+    if not token or token != GUI_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid token")
+    admin_user = db.query(User).filter(User.is_admin == True).first()
+    if not admin_user:
+        raise HTTPException(status_code=500, detail="No admin user found in database")
+    request.session["user_id"] = admin_user.id
+    return RedirectResponse(url="/admin", status_code=303)
 
 
 # ── Admin Panel ───────────────────────────────
@@ -213,13 +261,31 @@ def admin_panel(request: Request, db: Session = Depends(get_db)):
     if not user or not user.is_admin:
         return RedirectResponse(url="/login", status_code=303)
     finalize_auctions(db)
-    vehicles = db.query(Vehicle).all()
+    active_vehicles = (
+        db.query(Vehicle)
+        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .all()
+    )
+    finished_vehicles = (
+        db.query(Vehicle)
+        .filter(Vehicle.is_active == False, Vehicle.is_deleted == False)
+        .order_by(Vehicle.auction_end.desc())
+        .all()
+    )
+    deleted_vehicles = (
+        db.query(Vehicle)
+        .filter(Vehicle.is_deleted == True)
+        .order_by(Vehicle.auction_end.desc())
+        .all()
+    )
     users = db.query(User).all()
-    bids = db.query(Bid).all()
+    bids = db.query(Bid).order_by(Bid.created_at.desc()).all()
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "user": user,
-        "vehicles": vehicles,
+        "active_vehicles": active_vehicles,
+        "finished_vehicles": finished_vehicles,
+        "deleted_vehicles": deleted_vehicles,
         "users": users,
         "bids": bids,
     })
@@ -294,14 +360,9 @@ async def admin_delete_vehicle(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    # remove uploaded image file if exists
-    if vehicle.image_url and vehicle.image_url.startswith("/static/uploads/"):
-        try:
-            os.remove(vehicle.image_url.lstrip("/"))
-        except FileNotFoundError:
-            pass
-
-    db.delete(vehicle)
+    # Soft-delete: mark as deleted but keep the record
+    vehicle.is_deleted = True
+    vehicle.is_active = False
     db.commit()
 
     # broadcast removal to all clients
@@ -348,7 +409,11 @@ async def admin_update_auction(
 @app.get("/api/vehicles", response_model=List[VehicleOut])
 def api_get_vehicles(db: Session = Depends(get_db)):
     finalize_auctions(db)
-    return db.query(Vehicle).filter(Vehicle.is_active == True).all()
+    return (
+        db.query(Vehicle)
+        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .all()
+    )
 
 
 @app.get("/api/vehicles/{vehicle_id}", response_model=VehicleOut)
@@ -396,6 +461,7 @@ async def api_place_bid(
         "vehicle_id": vehicle.id,
         "current_price": float(vehicle.current_price),
         "bidder": user.username,
+        "bidder_id": user.id,
     })
 
     return new_bid
@@ -413,5 +479,39 @@ def api_get_bids(vehicle_id: int, db: Session = Depends(get_db)):
 
 # ── Run ───────────────────────────────────────
 if __name__ == "__main__":
+    import threading, time, webview
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+    HOST, PORT = "127.0.0.1", 8000
+    BASE_URL = f"http://{HOST}:{PORT}"
+
+    # Share the token via env var so the re-imported module gets the same value
+    os.environ["_AUTOBID_GUI_TOKEN"] = GUI_TOKEN
+
+    # Start uvicorn in a daemon thread so it shuts down with the GUI
+    server_thread = threading.Thread(
+        target=uvicorn.run,
+        kwargs={"app": "main:app", "host": HOST, "port": PORT, "log_level": "info"},
+        daemon=True,
+    )
+    server_thread.start()
+
+    # Wait for the server to become reachable
+    import urllib.request, urllib.error
+    for _ in range(30):
+        try:
+            urllib.request.urlopen(f"{BASE_URL}/docs")
+            break
+        except (urllib.error.URLError, ConnectionError):
+            time.sleep(0.3)
+
+    # Open the native desktop window, auto-login via the one-time token
+    login_url = f"{BASE_URL}/admin/gui-login?token={GUI_TOKEN}"
+    window = webview.create_window(
+        "AutoBid — Admin Panel",
+        url=login_url,
+        width=1280,
+        height=820,
+        min_size=(900, 600),
+    )
+    webview.start()   # blocks until the window is closed

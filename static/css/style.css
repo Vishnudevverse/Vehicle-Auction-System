@@ -116,3 +116,35 @@ html {
 .vehicle-col {
     transition: opacity 0.5s ease, transform 0.5s ease;
 }
+
+/* ── Filter bar ───────────────────────────── */
+.btn-group .btn-check:checked + .btn {
+    font-weight: 600;
+}
+
+/* ── Finished auction cards ───────────────── */
+#finishedSection .card:hover {
+    opacity: 1 !important;
+}
+
+/* ── Admin filter bar ─────────────────────── */
+.admin-table-section {
+    transition: opacity 0.3s ease;
+}
+
+/* ── Search input focus glow ──────────────── */
+#searchInput:focus,
+#adminSearchInput:focus,
+#bidSearchInput:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+}
+
+/* ── "Your Bid" badge glow ───────────────── */
+.your-bid-badge {
+    animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(13, 202, 240, 0.5); }
+    50%      { box-shadow: 0 0 8px 4px rgba(13, 202, 240, 0.25); }
+}

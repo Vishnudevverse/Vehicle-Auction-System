@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initCountdowns();
     initBidButtons();
     initWebSocket();
+    initSearchFilter();
 });
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -80,8 +81,28 @@ function handleBidUpdate(msg) {
     const btn = document.querySelector(`.bid-btn[data-vehicle-id="${msg.vehicle_id}"]`);
     if (btn) btn.dataset.currentPrice = msg.current_price;
 
+    // update "Your Bid" / outbid badge
+    updateBidBadge(msg.vehicle_id, msg.bidder_id);
+
     // show toast
     showToast(`${msg.bidder} bid $${parseFloat(msg.current_price).toLocaleString('en-US', {minimumFractionDigits:2})}`, 'success');
+}
+
+/* ── Update the bid badge on a vehicle card ─── */
+function updateBidBadge(vehicleId, bidderId) {
+    const badge = document.getElementById(`badge-${vehicleId}`);
+    if (!badge || typeof USER_ID === 'undefined' || USER_ID === null || USER_IS_ADMIN) return;
+
+    if (bidderId === USER_ID) {
+        // Current user is the highest bidder
+        badge.className = 'badge bg-info position-absolute top-0 start-0 m-3 px-3 py-2 shadow your-bid-badge';
+        badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Your Bid';
+        badge.style.display = '';
+    } else {
+        // Someone else outbid — hide the badge
+        badge.style.display = 'none';
+        badge.innerHTML = '';
+    }
 }
 
 /* ── Handle vehicle removal (real-time) ───── */
@@ -331,4 +352,79 @@ function initBidButtons() {
         alertEl.innerHTML = `<i class="bi bi-${type === 'success'
             ? 'check-circle' : 'exclamation-triangle'} me-1"></i>${msg}`;
     }
+}
+
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   SEARCH, FILTER & SORT (Homepage)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+function initSearchFilter() {
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const filterRadios = document.querySelectorAll('input[name="filterTab"]');
+    const liveSection = document.getElementById('liveSection');
+    const finishedSection = document.getElementById('finishedSection');
+    const noResults = document.getElementById('noResults');
+
+    if (!searchInput && !sortSelect) return;   // not on homepage
+
+    function applyAll() {
+        const query = (searchInput?.value || '').toLowerCase().trim();
+        const filter = document.querySelector('input[name="filterTab"]:checked')?.value || 'all';
+        const sort = sortSelect?.value || 'default';
+
+        // Show/hide sections
+        if (liveSection) liveSection.style.display = (filter === 'all' || filter === 'live') ? '' : 'none';
+        if (finishedSection) finishedSection.style.display = (filter === 'all' || filter === 'finished') ? '' : 'none';
+
+        let totalVisible = 0;
+
+        // Filter cards in both grids
+        document.querySelectorAll('.vehicle-col').forEach(col => {
+            const title = col.dataset.title || '';
+            const desc = col.dataset.desc || '';
+            const section = col.dataset.section || '';
+
+            const matchesSearch = !query || title.includes(query) || desc.includes(query);
+            const matchesFilter = filter === 'all' || filter === section;
+
+            if (matchesSearch && matchesFilter) {
+                col.style.display = '';
+                totalVisible++;
+            } else {
+                col.style.display = 'none';
+            }
+        });
+
+        // Sort visible cards in each grid
+        if (sort !== 'default') {
+            ['vehicleGrid', 'finishedGrid'].forEach(gridId => {
+                const grid = document.getElementById(gridId);
+                if (!grid) return;
+                const cols = Array.from(grid.querySelectorAll('.vehicle-col'));
+                cols.sort((a, b) => {
+                    const priceA = parseFloat(a.dataset.price) || 0;
+                    const priceB = parseFloat(b.dataset.price) || 0;
+                    const endA = new Date(a.dataset.end).getTime();
+                    const endB = new Date(b.dataset.end).getTime();
+
+                    switch (sort) {
+                        case 'price-low':  return priceA - priceB;
+                        case 'price-high': return priceB - priceA;
+                        case 'ending-soon': return endA - endB;
+                        case 'newest':     return endB - endA;
+                        default: return 0;
+                    }
+                });
+                cols.forEach(col => grid.appendChild(col));
+            });
+        }
+
+        // No results message
+        if (noResults) noResults.classList.toggle('d-none', totalVisible > 0);
+    }
+
+    searchInput?.addEventListener('input', applyAll);
+    sortSelect?.addEventListener('change', applyAll);
+    filterRadios.forEach(r => r.addEventListener('change', applyAll));
 }

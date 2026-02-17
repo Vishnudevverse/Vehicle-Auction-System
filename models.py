@@ -35,6 +35,7 @@ class Vehicle(Base):
     current_price  = Column(Numeric(12, 2), nullable=False)
     auction_end    = Column(DateTime, nullable=False)
     is_active      = Column(Boolean, default=True)
+    is_deleted     = Column(Boolean, default=False)              # soft-delete flag
     owner_id       = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_at     = Column(DateTime, server_default=func.now())
 
