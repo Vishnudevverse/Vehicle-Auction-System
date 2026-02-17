@@ -329,7 +329,14 @@ async def admin_update_auction(
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
 
-    vehicle.auction_end = datetime.fromisoformat(auction_end)
+    new_end = datetime.fromisoformat(auction_end)
+    vehicle.auction_end = new_end
+
+    # If the new end time is in the future, reactivate the auction
+    if new_end > datetime.now():
+        vehicle.is_active = True
+        vehicle.owner_id = None        # clear previous winner
+
     db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
