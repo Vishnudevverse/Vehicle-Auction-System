@@ -1,42 +1,100 @@
-# 🚗 Vehicle Auction System
+# AutoBid: Real-Time Vehicle Auction Platform
 
-A real-time vehicle auction platform built with **FastAPI**, **MySQL**, and **WebSockets**. This project features a dual-module system for Admins and Clients, ensuring high-speed bidding and automated inventory management.
+AutoBid is a full-stack vehicle auction platform built with FastAPI, MySQL, SQLAlchemy, server-rendered templates, and WebSockets. It supports real-time bidding, admin inventory control, automatic winner assignment, and a polished INR-first auction experience.
 
-## 🌟 Key Features
+## Executive Summary
 
-* **Real-Time Bidding:** Powered by WebSockets so users see price updates instantly.
-* **Admin Dashboard:** Manage vehicle inventory and bidding periods.
-* **Automated Ownership:** Vehicles are automatically moved to the "My Vehicles" section for the highest bidder once the auction ends.
-* **Responsive UI:** Built with **Bootstrap 5** for a professional, modern look.
+- Real-time bid broadcasting over WebSockets.
+- INR pricing across backend-rendered and live-updated UI.
+- Admin and customer roles with session-based access control.
+- Finished auctions with winner ownership and My Vehicles view.
+- Soft-delete lifecycle for vehicles to preserve auction history.
+- Optional desktop admin shell via PyWebView (automatic server-only fallback when unavailable).
 
----
+## Current Demo Dataset
 
-## 🛠️ Installation & Setup
+The seeded dataset in Database.sql includes:
 
-Follow these steps to get the project running locally:
+- 1 admin user and 2 customer users.
+- 8 active auctions (Indian market focus + selected imported vehicles).
+- 3 finished auctions with winners already assigned.
+- Bid history for finished auctions and active bidding examples.
 
-### 1. Install Dependencies
+Default accounts:
 
-Ensure you have Python installed, then run the following command to install required libraries:
+- Admin: admin / admin123
+- Customer: john_doe / password123
+- Customer: jane_smith / password123
+
+## Feature Highlights
+
+### Customer Experience
+
+- Browse live and finished auctions.
+- Search, filter, and sort vehicles.
+- Place bids with instant UI updates.
+- View won vehicles under My Vehicles.
+
+### Admin Experience
+
+- Add vehicles with image upload.
+- Validate file type and auction end date.
+- Restart or extend auctions.
+- Soft-delete listings (history retained).
+- View users and bid ledger from dashboard.
+
+### Platform Behavior
+
+- Request-driven auction finalization:
+  expired auctions are closed and ownership is assigned to highest bidders.
+- Row-level protection during bidding via with_for_update.
+- Legacy plain-text passwords auto-upgrade to hashed format after successful login.
+
+## Technology Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | FastAPI, Starlette Sessions, SQLAlchemy |
+| Database | MySQL (mysql-connector-python) |
+| Frontend | Jinja2 templates, Bootstrap 5, Vanilla JavaScript |
+| Realtime | WebSocket endpoint (/ws/auction) |
+| Auth/Security | Passlib + bcrypt, session middleware |
+| Runtime | Uvicorn, optional PyWebView desktop wrapper |
+
+## Architecture at a Glance
+
+- main.py: FastAPI app, routes, bidding logic, websocket broadcasting, auth flow.
+- models.py: SQLAlchemy entities (User, Vehicle, Bid).
+- schemas.py: API response/request schemas.
+- database.py: SQLAlchemy engine/session wiring.
+- templates/: server-rendered pages (home, login/register, admin, my vehicles).
+- static/js/auction.js: live bidding UX, reconnect logic, bid modal, sorting/filtering.
+- Database.sql: schema + presentation-ready seed data.
+
+## Quick Start
+
+### 1) Prerequisites
+
+- Python 3.13+ recommended
+- MySQL 8+
+
+### 2) Install Dependencies
+
+Use the same interpreter for installation and runtime:
 
 ```bash
-pip install -r temp/requirements.txt
-
+python -m pip install -r temp/requirements.txt
 ```
 
-### 2. Database Configuration
-
-1. Open your terminal or Command Prompt.
-2. Log into MySQL and import the database schema:
+### 3) Initialize Database
 
 ```bash
 mysql -u root -p < Database.sql
-
 ```
 
-### 3. Environment Setup
+### 4) Configure Environment
 
-Create a `.env` file in the root directory and paste the following configuration:
+Create .env in project root:
 
 ```env
 DB_HOST=localhost
@@ -45,140 +103,117 @@ DB_PASSWORD=1234
 DB_NAME=vehicle_auction
 DB_PORT=3306
 SECRET_KEY=auction-secret-key-change-in-production
-
 ```
 
----
-
-## 🚀 Running the Application
-
-Start the FastAPI server using Python:
+### 5) Run the Application
 
 ```bash
 python main.py
-
 ```
 
-Once the server is running, open your browser and navigate to:
-👉 **[http://127.0.0.1:8000](http://127.0.0.1:8000)**
+Open:
 
----
+- App: http://127.0.0.1:8000
+- Docs: http://127.0.0.1:8000/docs
 
-## 📂 Project Architecture
-
-* **Frontend:** HTML5, CSS3, JavaScript (Vanilla), Bootstrap 5.
-* **Backend:** FastAPI (Python 3.x).
-* **Database:** MySQL (Relational Schema).
-* **Communication:** WebSockets for live updates.
-
----
-
-## ❓ FAQ
-
-### 1) How do I install dependencies?
-
-Run:
-
-```bash
-pip install -r temp/requirements.txt
-```
-
-If `pip` is not recognized, use `python -m pip install -r temp/requirements.txt`.
-
-### 2) How do I initialize the database?
-
-Import the SQL schema and sample data:
-
-```bash
-mysql -u root -p < Database.sql
-```
-
-Make sure your `.env` values match the database you imported.
-
-### 3) What are the default sample login accounts?
-
-From `Database.sql`:
-
-* Admin: `admin` / `admin123`
-* Client: `john_doe` / `password123`
-* Client: `jane_smith` / `password123`
-
-### 4) Why can the admin not place bids?
-
-This is intentional. The backend blocks admin bidding (`/api/bids` returns 403 for admin users), and the UI disables bid actions for admins.
-
-### 5) Why does ownership not update exactly when auction time ends?
-
-Auctions are finalized by `finalize_auctions(db)`, which runs when key pages/API routes are accessed. That means ownership assignment is request-driven, not a background scheduler.
-
-### 6) Why did my bid fail with "Bid must be greater than current price"?
-
-Your bid amount must be strictly greater than the current price. The frontend suggests a higher minimum (current + 100) in the modal, but the backend rule is simply `amount > current_price`.
-
-### 7) Why am I seeing "Login required to place a bid"?
-
-Bidding uses session authentication. Log in first from `/login`, then place bids from the homepage.
-
-### 8) Why are real-time updates not appearing?
-
-Check these points:
-
-* The browser is connected to `/ws/auction` (look for the live/reconnecting status badge).
-* You are opening the app from the same FastAPI server host/port.
-* No proxy/firewall is blocking WebSocket traffic.
-
-### 9) Where are uploaded vehicle images stored?
-
-Uploaded files are saved in:
-
-* `static/uploads/`
-
-Image paths are stored as `/static/uploads/<filename>` in the database.
-
-### 10) Is vehicle deletion permanent?
-
-No. Admin deletion is a soft-delete:
-
-* `is_deleted = True`
-* `is_active = False`
-
-Records stay in the database for audit/history.
-
-### 11) Why does running `python main.py` open a desktop window?
-
-`main.py` starts Uvicorn in a thread and launches a PyWebView admin GUI. This is expected behavior in this project.
-
-If you only want the web server, run:
+Alternative server-only run:
 
 ```bash
 uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 12) Where can I view API docs?
+## Environment Variables
 
-Once running, open:
+| Variable | Description | Default |
+|---|---|---|
+| DB_HOST | MySQL host | localhost |
+| DB_USER | MySQL username | root |
+| DB_PASSWORD | MySQL password | 1234 |
+| DB_NAME | MySQL database name | vehicle_auction |
+| DB_PORT | MySQL port | 3306 |
+| SECRET_KEY | Session signing key | auction-secret-key-change-in-production |
 
-* `http://127.0.0.1:8000/docs`
+## API Snapshot
 
-### 13) What environment variables are required?
+| Endpoint | Method | Purpose |
+|---|---|---|
+| /api/vehicles | GET | List active, non-deleted vehicles |
+| /api/vehicles/{vehicle_id} | GET | Vehicle detail |
+| /api/bids | POST | Place bid (login required, admin blocked) |
+| /api/vehicles/{vehicle_id}/bids | GET | Bid history for a vehicle |
+| /ws/auction | WS | Live bid/vehicle events |
 
-In `.env`:
+## Security and Data Integrity Notes
 
-* `DB_HOST`
-* `DB_USER`
-* `DB_PASSWORD`
-* `DB_NAME`
-* `DB_PORT`
-* `SECRET_KEY`
+- Password hashing: passlib[bcrypt] with bcrypt pinned to 4.0.1.
+- Session auth enforced for bidding and admin actions.
+- Admin cannot bid.
+- Vehicle deletion is soft-delete (is_deleted = True, is_active = False).
+- Upload validation checks extension and MIME type.
+- Auction edits are blocked for deleted vehicles.
 
-Defaults exist in code, but production should always use explicit secure values.
+## Demo Flow for Presentation
 
-### 14) Do passwords use hashing?
+1. Log in as admin and open the Admin Dashboard.
+2. Show active vs finished auction counts and recent bids.
+3. Add a new vehicle and demonstrate live card insertion on client view.
+4. Log in as customer and place a bid.
+5. Show instant INR price update and bid badge state change.
+6. Navigate to My Vehicles to show won listings from finished auctions.
 
-Yes. New registrations are stored with bcrypt hashing via Passlib.
+## Troubleshooting
 
-For backward compatibility, legacy plain-text passwords from older seed data can still log in and are upgraded to hashed format on successful login.
+### ModuleNotFoundError: No module named fastapi
 
-### 15) Why does `/admin` redirect me to login?
+Install dependencies using the same interpreter:
 
-You must be authenticated and have `is_admin=True`. Non-admin users are redirected to `/login`.
+```bash
+python -m pip install -r temp/requirements.txt
+```
+
+### bcrypt/passlib error during register/login
+
+Ensure bcrypt 4.0.1 is installed (already pinned in requirements):
+
+```bash
+python -m pip install bcrypt==4.0.1
+```
+
+### Unknown database vehicle_auction
+
+Import the schema and seed data first:
+
+```bash
+mysql -u root -p < Database.sql
+```
+
+### PyWebView not available
+
+The app automatically falls back to web-server mode only. This is expected on environments where pywebview is unavailable.
+
+## Project Structure
+
+```text
+.
+|- main.py
+|- database.py
+|- models.py
+|- schemas.py
+|- Database.sql
+|- temp/
+|  |- requirements.txt
+|- static/
+|  |- css/
+|  |- js/
+|  |- uploads/
+|- templates/
+|  |- base.html
+|  |- index.html
+|  |- login.html
+|  |- admin.html
+|  |- my_vehicles.html
+```
+
+## License
+
+This project is intended for academic, portfolio, and internal demonstration use.
