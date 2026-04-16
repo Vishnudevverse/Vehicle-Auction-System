@@ -7,12 +7,13 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
-from decimal import Decimal
 from datetime import datetime
 from typing import List, Optional
-import os, json, uuid, shutil, secrets
+from passlib.context import CryptContext
+import os, uuid, shutil, secrets
 
 from database import engine, get_db, Base
 from models import User, Vehicle, Bid
@@ -34,6 +35,8 @@ templates = Jinja2Templates(directory="templates")
 # When launched via `python main.py`, the token is set as an env var
 # so the same value is used by both the GUI and the server.
 GUI_TOKEN: str = os.environ.get("_AUTOBID_GUI_TOKEN", secrets.token_urlsafe(32))
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -85,29 +88,89 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
     return db.query(User).filter(User.id == user_id).first()
 
 
+def password_is_hashed(stored_password: str) -> bool:
+    return bool(pwd_context.identify(stored_password))
+
+
+def hash_password(raw_password: str) -> str:
+    return pwd_context.hash(raw_password)
+
+
+def verify_password(raw_password: str, stored_password: str) -> bool:
+    if password_is_hashed(stored_password):
+        return pwd_context.verify(raw_password, stored_password)
+    return secrets.compare_digest(raw_password, stored_password)
+
+
+def parse_auction_end(raw_value: str) -> datetime:
+    try:
+        return datetime.fromisoformat(raw_value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid auction_end datetime format") from exc
+
+
+def get_highest_bidder_map(db: Session, vehicle_ids: Optional[list[int]] = None) -> dict[int, int]:
+    if vehicle_ids is not None and not vehicle_ids:
+        return {}
+
+    max_amount_query = db.query(
+        Bid.vehicle_id.label("vehicle_id"),
+        func.max(Bid.amount).label("max_amount"),
+    )
+    if vehicle_ids is not None:
+        max_amount_query = max_amount_query.filter(Bid.vehicle_id.in_(vehicle_ids))
+    max_amount_subquery = max_amount_query.group_by(Bid.vehicle_id).subquery()
+
+    max_id_query = (
+        db.query(
+            Bid.vehicle_id.label("vehicle_id"),
+            func.max(Bid.id).label("max_bid_id"),
+        )
+        .join(
+            max_amount_subquery,
+            and_(
+                Bid.vehicle_id == max_amount_subquery.c.vehicle_id,
+                Bid.amount == max_amount_subquery.c.max_amount,
+            ),
+        )
+    )
+    if vehicle_ids is not None:
+        max_id_query = max_id_query.filter(Bid.vehicle_id.in_(vehicle_ids))
+    max_id_subquery = max_id_query.group_by(Bid.vehicle_id).subquery()
+
+    rows = (
+        db.query(Bid.vehicle_id, Bid.user_id)
+        .join(max_id_subquery, Bid.id == max_id_subquery.c.max_bid_id)
+        .all()
+    )
+    return {vehicle_id: user_id for vehicle_id, user_id in rows}
+
+
 # ── Helper: finalize expired auctions ─────────
 def finalize_auctions(db: Session):
     """Close expired auctions and assign vehicles to highest bidders."""
     now = datetime.now()
     expired = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False,
-                Vehicle.auction_end <= now)
+        .filter(
+            Vehicle.is_active.is_(True),
+            Vehicle.is_deleted.is_(False),
+            Vehicle.auction_end <= now,
+        )
         .all()
     )
-    for v in expired:
-        v.is_active = False
-        # find highest bid
-        top_bid = (
-            db.query(Bid)
-            .filter(Bid.vehicle_id == v.id)
-            .order_by(Bid.amount.desc())
-            .first()
-        )
-        if top_bid:
-            v.owner_id = top_bid.user_id
-    if expired:
-        db.commit()
+
+    if not expired:
+        return
+
+    expired_ids = [vehicle.id for vehicle in expired]
+    highest_bidders = get_highest_bidder_map(db, expired_ids)
+
+    for vehicle in expired:
+        vehicle.is_active = False
+        vehicle.owner_id = highest_bidders.get(vehicle.id)
+
+    db.commit()
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -119,31 +182,20 @@ def home(request: Request, db: Session = Depends(get_db)):
     finalize_auctions(db)
     vehicles = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .filter(Vehicle.is_active.is_(True), Vehicle.is_deleted.is_(False))
         .all()
     )
     finished = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == False, Vehicle.is_deleted == False)
+        .filter(Vehicle.is_active.is_(False), Vehicle.is_deleted.is_(False))
         .order_by(Vehicle.auction_end.desc())
         .all()
     )
     user = get_current_user(request, db)
 
-    # Build a dict of vehicle_id -> highest bidder user_id
-    highest_bidders = {}
-    for v in vehicles:
-        top = (
-            db.query(Bid)
-            .filter(Bid.vehicle_id == v.id)
-            .order_by(Bid.amount.desc())
-            .first()
-        )
-        if top:
-            highest_bidders[v.id] = top.user_id
+    highest_bidders = get_highest_bidder_map(db, [vehicle.id for vehicle in vehicles])
 
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "index.html", {
         "vehicles": vehicles,
         "finished": finished,
         "user": user,
@@ -154,8 +206,7 @@ def home(request: Request, db: Session = Depends(get_db)):
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    return templates.TemplateResponse("login.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "login.html", {
         "user": user,
         "error": None,
     })
@@ -169,12 +220,16 @@ def login(
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.username == username).first()
-    if not user or user.password != password:
-        return templates.TemplateResponse("login.html", {
-            "request": request,
+    if not user or not verify_password(password, user.password):
+        return templates.TemplateResponse(request, "login.html", {
             "user": None,
             "error": "Invalid username or password",
         })
+
+    if not password_is_hashed(user.password):
+        user.password = hash_password(password)
+        db.commit()
+
     request.session["user_id"] = user.id
     return RedirectResponse(url="/", status_code=303)
 
@@ -182,8 +237,7 @@ def login(
 @app.get("/register", response_class=HTMLResponse)
 def register_page(request: Request, db: Session = Depends(get_db)):
     user = get_current_user(request, db)
-    return templates.TemplateResponse("login.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "login.html", {
         "user": user,
         "error": None,
         "register_mode": True,
@@ -198,17 +252,36 @@ def register(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    username = username.strip()
+    email = email.strip().lower()
+
+    if len(username) < 3:
+        return templates.TemplateResponse(request, "login.html", {
+            "user": None,
+            "error": "Username must be at least 3 characters",
+            "register_mode": True,
+        })
+    if len(password) < 6:
+        return templates.TemplateResponse(request, "login.html", {
+            "user": None,
+            "error": "Password must be at least 6 characters",
+            "register_mode": True,
+        })
+
     existing = db.query(User).filter(
         (User.username == username) | (User.email == email)
     ).first()
     if existing:
-        return templates.TemplateResponse("login.html", {
-            "request": request,
+        return templates.TemplateResponse(request, "login.html", {
             "user": None,
             "error": "Username or email already taken",
             "register_mode": True,
         })
-    new_user = User(username=username, email=email, password=password)
+    new_user = User(
+        username=username,
+        email=email,
+        password=hash_password(password),
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -234,8 +307,7 @@ def my_vehicles(request: Request, db: Session = Depends(get_db)):
         .filter(Vehicle.owner_id == user.id, Vehicle.is_active == False)
         .all()
     )
-    return templates.TemplateResponse("my_vehicles.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "my_vehicles.html", {
         "user": user,
         "vehicles": owned,
     })
@@ -263,25 +335,24 @@ def admin_panel(request: Request, db: Session = Depends(get_db)):
     finalize_auctions(db)
     active_vehicles = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .filter(Vehicle.is_active.is_(True), Vehicle.is_deleted.is_(False))
         .all()
     )
     finished_vehicles = (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == False, Vehicle.is_deleted == False)
+        .filter(Vehicle.is_active.is_(False), Vehicle.is_deleted.is_(False))
         .order_by(Vehicle.auction_end.desc())
         .all()
     )
     deleted_vehicles = (
         db.query(Vehicle)
-        .filter(Vehicle.is_deleted == True)
+        .filter(Vehicle.is_deleted.is_(True))
         .order_by(Vehicle.auction_end.desc())
         .all()
     )
     users = db.query(User).all()
     bids = db.query(Bid).order_by(Bid.created_at.desc()).all()
-    return templates.TemplateResponse("admin.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "admin.html", {
         "user": user,
         "active_vehicles": active_vehicles,
         "finished_vehicles": finished_vehicles,
@@ -308,14 +379,22 @@ async def admin_add_vehicle(
 
     image_url = None
     if image and image.filename:
-        ext = os.path.splitext(image.filename)[1]
+        ext = os.path.splitext(image.filename)[1].lower()
+        if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Unsupported image file type")
+        if image.content_type and not image.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+
         filename = f"{uuid.uuid4().hex}{ext}"
         filepath = os.path.join(UPLOAD_DIR, filename)
         with open(filepath, "wb") as f:
             shutil.copyfileobj(image.file, f)
         image_url = f"/static/uploads/{filename}"
 
-    end_dt = datetime.fromisoformat(auction_end)
+    end_dt = parse_auction_end(auction_end)
+    if end_dt <= datetime.now():
+        raise HTTPException(status_code=400, detail="Auction end time must be in the future")
+
     vehicle = Vehicle(
         title=title,
         description=description,
@@ -389,8 +468,10 @@ async def admin_update_auction(
     vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
+    if vehicle.is_deleted:
+        raise HTTPException(status_code=400, detail="Cannot update deleted vehicle")
 
-    new_end = datetime.fromisoformat(auction_end)
+    new_end = parse_auction_end(auction_end)
     vehicle.auction_end = new_end
 
     # If the new end time is in the future, reactivate the auction
@@ -411,14 +492,18 @@ def api_get_vehicles(db: Session = Depends(get_db)):
     finalize_auctions(db)
     return (
         db.query(Vehicle)
-        .filter(Vehicle.is_active == True, Vehicle.is_deleted == False)
+        .filter(Vehicle.is_active.is_(True), Vehicle.is_deleted.is_(False))
         .all()
     )
 
 
 @app.get("/api/vehicles/{vehicle_id}", response_model=VehicleOut)
 def api_get_vehicle(vehicle_id: int, db: Session = Depends(get_db)):
-    vehicle = db.query(Vehicle).filter(Vehicle.id == vehicle_id).first()
+    vehicle = (
+        db.query(Vehicle)
+        .filter(Vehicle.id == vehicle_id, Vehicle.is_deleted.is_(False))
+        .first()
+    )
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
@@ -436,7 +521,12 @@ async def api_place_bid(
     if user.is_admin:
         raise HTTPException(status_code=403, detail="Admins cannot place bids")
 
-    vehicle = db.query(Vehicle).filter(Vehicle.id == bid.vehicle_id).first()
+    vehicle = (
+        db.query(Vehicle)
+        .filter(Vehicle.id == bid.vehicle_id, Vehicle.is_deleted.is_(False))
+        .with_for_update()
+        .first()
+    )
     if not vehicle:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     if not vehicle.is_active:
@@ -479,14 +569,25 @@ def api_get_bids(vehicle_id: int, db: Session = Depends(get_db)):
 
 # ── Run ───────────────────────────────────────
 if __name__ == "__main__":
-    import threading, time, webview
+    import threading
+    import time
     import uvicorn
+
+    try:
+        import webview
+    except ModuleNotFoundError:
+        webview = None
 
     HOST, PORT = "127.0.0.1", 8000
     BASE_URL = f"http://{HOST}:{PORT}"
 
     # Share the token via env var so the re-imported module gets the same value
     os.environ["_AUTOBID_GUI_TOKEN"] = GUI_TOKEN
+
+    if webview is None:
+        print("PyWebView is not installed. Starting in web-server mode only.")
+        uvicorn.run("main:app", host=HOST, port=PORT, log_level="info")
+        raise SystemExit(0)
 
     # Start uvicorn in a daemon thread so it shuts down with the GUI
     server_thread = threading.Thread(
@@ -507,7 +608,7 @@ if __name__ == "__main__":
 
     # Open the native desktop window, auto-login via the one-time token
     login_url = f"{BASE_URL}/admin/gui-login?token={GUI_TOKEN}"
-    window = webview.create_window(
+    webview.create_window(
         "AutoBid — Admin Panel",
         url=login_url,
         width=1280,

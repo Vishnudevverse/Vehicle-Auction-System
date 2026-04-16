@@ -14,6 +14,21 @@ document.addEventListener('DOMContentLoaded', () => {
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 let ws = null;
 let reconnectTimer = null;
+let countdownInterval = null;
+
+function escapeHtml(value) {
+    const source = String(value ?? '');
+    return source.replace(/[&<>"']/g, (char) => {
+        const entities = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+        };
+        return entities[char] || char;
+    });
+}
 
 function initWebSocket() {
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -28,13 +43,23 @@ function initWebSocket() {
 
     ws.onclose = () => {
         updateWsStatus(false);
-        reconnectTimer = setTimeout(initWebSocket, 3000);   // auto-reconnect
+        if (!reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                initWebSocket();
+            }, 3000);
+        }
     };
 
     ws.onerror = () => ws.close();
 
     ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
+        let msg;
+        try {
+            msg = JSON.parse(event.data);
+        } catch {
+            return;
+        }
 
         switch (msg.type) {
             case 'bid_update':
@@ -126,18 +151,26 @@ function handleVehicleAdded(msg) {
     if (!grid) return;
 
     // remove empty state if present
-    const empty = document.getElementById('emptyState');
+    const empty = document.getElementById('emptyLiveState');
     if (empty) empty.remove();
 
     const v = msg.vehicle;
+    const rawTitle = String(v.title || 'Untitled Vehicle');
+    const rawDescription = String(v.description || '');
+    const safeTitle = escapeHtml(rawTitle);
     const desc = v.description ? v.description.substring(0, 100) + (v.description.length > 100 ? '…' : '') : '';
+    const safeDesc = escapeHtml(desc);
+    const titleSearch = escapeHtml(rawTitle.toLowerCase());
+    const descSearch = escapeHtml(rawDescription.toLowerCase());
+    const safeEnd = escapeHtml(v.auction_end || '');
     const price = parseFloat(v.current_price).toLocaleString('en-US', {minimumFractionDigits:2});
     const startPrice = parseFloat(v.starting_price).toLocaleString('en-US', {minimumFractionDigits:2});
 
     // image or placeholder
     let imageHtml;
     if (v.image_url) {
-        imageHtml = `<img src="${v.image_url}" class="card-img-top vehicle-img" alt="${v.title}" loading="lazy" />`;
+        const safeImageUrl = escapeHtml(v.image_url);
+        imageHtml = `<img src="${safeImageUrl}" class="card-img-top vehicle-img" alt="${safeTitle}" loading="lazy" />`;
     } else {
         const tpl = document.getElementById('placeholderSvg');
         imageHtml = tpl ? tpl.innerHTML : '<div class="card-img-top vehicle-img bg-body-secondary d-flex align-items-center justify-content-center" style="height:220px"><i class="bi bi-car-front display-4 text-body-tertiary"></i></div>';
@@ -148,23 +181,24 @@ function handleVehicleAdded(msg) {
     if (typeof USER_IS_ADMIN !== 'undefined' && USER_IS_ADMIN) {
         bidHtml = `<button class="btn btn-secondary w-100" disabled><i class="bi bi-shield-lock me-1"></i>Admins Cannot Bid</button>`;
     } else if (typeof USER_LOGGED_IN !== 'undefined' && USER_LOGGED_IN) {
-        bidHtml = `<button class="btn btn-primary w-100 bid-btn" data-vehicle-id="${v.id}" data-current-price="${v.current_price}" data-title="${v.title}"><i class="bi bi-hammer me-1"></i>Place Bid</button>`;
+        bidHtml = `<button class="btn btn-primary w-100 bid-btn" data-vehicle-id="${v.id}" data-current-price="${v.current_price}" data-title="${safeTitle}"><i class="bi bi-hammer me-1"></i>Place Bid</button>`;
     } else {
         bidHtml = `<a href="/login" class="btn btn-outline-primary w-100"><i class="bi bi-box-arrow-in-right me-1"></i>Login to Bid</a>`;
     }
 
     const html = `
-    <div class="col-lg-4 col-md-6 vehicle-col" data-vehicle-id="${v.id}" style="opacity:0;transform:translateY(20px);transition:all 0.5s ease;">
+    <div class="col-lg-4 col-md-6 vehicle-col" data-vehicle-id="${v.id}" data-title="${titleSearch}" data-desc="${descSearch}" data-price="${v.current_price}" data-end="${safeEnd}" data-section="live" style="opacity:0;transform:translateY(20px);transition:all 0.5s ease;">
         <div class="card vehicle-card h-100 border-0 shadow-sm">
             <div class="card-img-wrapper position-relative overflow-hidden">
                 ${imageHtml}
                 <span class="badge bg-success position-absolute top-0 end-0 m-3 px-3 py-2 shadow">
                     <i class="bi bi-broadcast me-1"></i>LIVE
                 </span>
+                <span class="badge position-absolute top-0 start-0 m-3 px-3 py-2 shadow" id="badge-${v.id}" style="display:none;"></span>
             </div>
             <div class="card-body d-flex flex-column">
-                <h5 class="card-title fw-bold mb-1">${v.title}</h5>
-                <p class="card-text text-body-secondary small mb-3">${desc}</p>
+                <h5 class="card-title fw-bold mb-1">${safeTitle}</h5>
+                <p class="card-text text-body-secondary small mb-3">${safeDesc}</p>
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <small class="text-body-secondary d-block">Starting Price</small>
@@ -177,7 +211,7 @@ function handleVehicleAdded(msg) {
                 </div>
                 <div class="d-flex align-items-center mb-3">
                     <i class="bi bi-clock text-warning me-2"></i>
-                    <small class="countdown text-warning fw-semibold" data-end="${v.auction_end}">Calculating…</small>
+                    <small class="countdown text-warning fw-semibold" data-end="${safeEnd}">Calculating…</small>
                 </div>
                 <div class="mt-auto">${bidHtml}</div>
             </div>
@@ -202,7 +236,10 @@ function handleVehicleAdded(msg) {
 
 function updateActiveCount(delta) {
     const el = document.getElementById('activeCount');
-    if (el) el.textContent = parseInt(el.textContent || '0') + delta;
+    if (!el) return;
+    const current = parseInt(el.textContent || '0', 10);
+    const safeCurrent = Number.isNaN(current) ? 0 : current;
+    el.textContent = String(safeCurrent + delta);
 }
 
 /* ── Toast Notifications ──────────────────── */
@@ -239,9 +276,8 @@ function showToast(message, type = 'info') {
    COUNTDOWN TIMERS
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 function initCountdowns() {
-    const countdowns = document.querySelectorAll('.countdown');
-
     function update() {
+        const countdowns = document.querySelectorAll('.countdown');
         const now = new Date();
         countdowns.forEach(el => {
             const end = new Date(el.dataset.end);
@@ -267,7 +303,9 @@ function initCountdowns() {
     }
 
     update();
-    setInterval(update, 1000);
+    if (!countdownInterval) {
+        countdownInterval = setInterval(update, 1000);
+    }
 }
 
 
