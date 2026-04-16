@@ -127,12 +127,12 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <div>
                                 <small class="text-body-secondary d-block">Starting Price</small>
-                                <span class="text-body-secondary">${{ "{:,.2f}".format(v.starting_price) }}</span>
+                                <span class="text-body-secondary">{{ format_inr(v.starting_price) }}</span>
                             </div>
                             <div class="text-end">
                                 <small class="text-success d-block fw-semibold">Current Bid</small>
                                 <span class="fs-5 fw-bold text-success" id="price-{{ v.id }}">
-                                    ${{ "{:,.2f}".format(v.current_price) }}
+                                    {{ format_inr(v.current_price) }}
                                 </span>
                             </div>
                         </div>
@@ -233,11 +233,11 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <small class="text-body-secondary d-block">Starting Price</small>
-                                <span class="text-body-secondary">${{ "{:,.2f}".format(v.starting_price) }}</span>
+                                <span class="text-body-secondary">{{ format_inr(v.starting_price) }}</span>
                             </div>
                             <div class="text-end">
                                 <small class="text-body-secondary d-block">Final Price</small>
-                                <span class="fs-5 fw-bold text-success">${{ "{:,.2f}".format(v.current_price) }}</span>
+                                <span class="fs-5 fw-bold text-success">{{ format_inr(v.current_price) }}</span>
                             </div>
                         </div>
                         <div class="d-flex align-items-center mt-2">
@@ -285,9 +285,9 @@
                     <strong class="text-success" id="modalCurrentPrice"></strong>
                 </p>
                 <div class="mb-3">
-                    <label for="bidAmount" class="form-label">Your Bid ($)</label>
+                      <label for="bidAmount" class="form-label">Your Bid (INR)</label>
                     <input type="number" class="form-control form-control-lg"
-                           id="bidAmount" step="100" min="0"
+                          id="bidAmount" step="500" min="0"
                            placeholder="Enter bid amount" />
                 </div>
                 <div id="bidAlert" class="d-none"></div>

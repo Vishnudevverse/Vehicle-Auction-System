@@ -60,47 +60,104 @@ INSERT INTO users (username, email, password) VALUES
 ('john_doe',  'john@example.com',  'password123'),
 ('jane_smith','jane@example.com',  'password123');
 
--- Sample vehicles (image_url = NULL → placeholder will render)
+-- Sample vehicles (prices are stored in INR)
+-- Mix: primarily Indian-market vehicles with a few international imports.
 INSERT INTO vehicles (title, description, image_url, starting_price, current_price, auction_end) VALUES
 (
-    '2023 Tesla Model S',
-    'Fully loaded Long Range with autopilot. Pearl white exterior, black leather interior. Only 8,200 miles.',
+    '2024 Tata Nexon EV Max',
+    'Top-spec electric SUV in Pristine White with ventilated seats, 360 camera, and connected car features.',
     NULL,
-    45000.00, 45000.00,
+    1650000.00, 1650000.00,
     DATE_ADD(NOW(), INTERVAL 3 DAY)
 ),
 (
-    '2022 Ford Mustang GT',
-    'Race Red, 5.0L V8, 6-speed manual. Performance package with Brembo brakes and MagneRide suspension.',
+    '2023 Mahindra XUV700 AX7L Diesel AT',
+    '7-seater premium SUV with ADAS, panoramic sunroof, Sony 3D audio, and full service record.',
     NULL,
-    38000.00, 38000.00,
+    2375000.00, 2375000.00,
     DATE_ADD(NOW(), INTERVAL 5 DAY)
 ),
 (
-    '2024 BMW M4 Competition',
-    'Alpine White with carbon-fiber roof. Twin-turbo inline-6 producing 503 hp. Under factory warranty.',
+    '2022 Hyundai Creta SX(O) Diesel',
+    'Well-maintained compact SUV with Bose audio, panoramic sunroof, and low ownership cost.',
     NULL,
-    72000.00, 72000.00,
+    1590000.00, 1590000.00,
     DATE_ADD(NOW(), INTERVAL 2 DAY)
 ),
 (
-    '2021 Porsche 911 Carrera',
-    'GT Silver Metallic, PDK transmission, Sport Chrono package. Certified pre-owned with 15,000 miles.',
+    '2023 Maruti Suzuki Grand Vitara Alpha AT',
+    'Strong-hybrid variant with 360-view camera, premium interiors, and excellent city mileage.',
     NULL,
-    95000.00, 95000.00,
+    1740000.00, 1740000.00,
     DATE_ADD(NOW(), INTERVAL 7 DAY)
 ),
 (
-    '2023 Mercedes-AMG C63',
-    'Obsidian Black, Burmester sound system, heads-up display. Hybrid turbo-4 with 671 hp combined output.',
+    '2021 Toyota Fortuner Legender 4x4 AT',
+    'Flagship diesel SUV in pearl white-black dual tone, single owner, highway driven.',
     NULL,
-    68000.00, 68000.00,
+    3850000.00, 3850000.00,
     DATE_ADD(NOW(), INTERVAL 4 DAY)
 ),
 (
-    '2022 Chevrolet Corvette C8',
-    'Rapid Blue with natural dipped interior. 6.2L V8, Z51 performance package, front-lift system.',
+    '2024 Kia Seltos X-Line Turbo DCT',
+    'Turbo-petrol SUV with ADAS Level 2, premium matte finish, and connected technology pack.',
     NULL,
-    62000.00, 62000.00,
+    1925000.00, 1925000.00,
+    DATE_ADD(NOW(), INTERVAL 6 DAY)
+),
+(
+    '2022 BMW 330Li M Sport (Imported)',
+    'Long-wheelbase luxury sedan with adaptive suspension, gesture control, and premium Harman Kardon audio.',
+    NULL,
+    4800000.00, 4800000.00,
+    DATE_ADD(NOW(), INTERVAL 8 DAY)
+),
+(
+    '2021 Mercedes-Benz GLC 300 4MATIC (Imported)',
+    'Petrol AWD luxury SUV with panoramic roof, digital cockpit, and full dealership service history.',
+    NULL,
+    5675000.00, 5675000.00,
     DATE_ADD(NOW(), INTERVAL 6 DAY)
 );
+
+-- Finished auctions with winners (users 2 and 3)
+INSERT INTO vehicles (
+    title, description, image_url, starting_price, current_price,
+    auction_end, is_active, owner_id
+) VALUES
+(
+    '2020 Skoda Octavia RS 245',
+    'Performance sedan with virtual cockpit, paddle shifters, and full service history. Auction closed with competitive bidding.',
+    NULL,
+    2250000.00, 2485000.00,
+    DATE_SUB(NOW(), INTERVAL 2 DAY),
+    FALSE, 2
+),
+(
+    '2021 MG Hector Plus Sharp Diesel',
+    'Family SUV with captain seats, panoramic sunroof, and connected tech package. Recently completed auction.',
+    NULL,
+    1790000.00, 1960000.00,
+    DATE_SUB(NOW(), INTERVAL 1 DAY),
+    FALSE, 3
+),
+(
+    '2019 Honda City ZX CVT',
+    'Reliable premium sedan with low maintenance profile and clean ownership records. Sold in a finished auction.',
+    NULL,
+    980000.00, 1115000.00,
+    DATE_SUB(NOW(), INTERVAL 3 DAY),
+    FALSE, 2
+);
+
+-- Sample bids covering finished auctions and one active auction
+-- Vehicle IDs are deterministic after table reset:
+-- 1-8 active, 9-11 finished.
+INSERT INTO bids (amount, user_id, vehicle_id, created_at) VALUES
+(2320000.00, 3, 9, DATE_SUB(NOW(), INTERVAL 2 DAY)),
+(2485000.00, 2, 9, DATE_SUB(NOW(), INTERVAL 2 DAY)),
+(1885000.00, 2, 10, DATE_SUB(NOW(), INTERVAL 1 DAY)),
+(1960000.00, 3, 10, DATE_SUB(NOW(), INTERVAL 1 DAY)),
+(1045000.00, 3, 11, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+(1115000.00, 2, 11, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+(2410000.00, 3, 2, DATE_SUB(NOW(), INTERVAL 6 HOUR));

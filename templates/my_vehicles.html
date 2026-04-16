@@ -46,7 +46,7 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <small class="text-body-secondary d-block">Winning Bid</small>
-                                <span class="fs-5 fw-bold text-success">${{ "{:,.2f}".format(v.current_price) }}</span>
+                                <span class="fs-5 fw-bold text-success">{{ format_inr(v.current_price) }}</span>
                             </div>
                             <div class="text-end">
                                 <small class="text-body-secondary d-block">Auction Ended</small>

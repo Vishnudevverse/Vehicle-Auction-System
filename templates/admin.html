@@ -68,9 +68,9 @@
                                    placeholder="e.g. 2024 Tesla Model 3" required />
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">Starting Price ($)</label>
+                            <label class="form-label">Starting Price (INR)</label>
                             <input type="number" name="starting_price" class="form-control"
-                                   step="0.01" min="1" placeholder="50000" required />
+                                step="0.01" min="1" placeholder="1500000" required />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Auction End</label>
@@ -171,8 +171,8 @@
                                     {% endif %}
                                 </td>
                                 <td class="fw-semibold">{{ v.title }}</td>
-                                <td>${{ "{:,.2f}".format(v.starting_price) }}</td>
-                                <td class="text-success fw-bold">${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>{{ format_inr(v.starting_price) }}</td>
+                                <td class="text-success fw-bold">{{ format_inr(v.current_price) }}</td>
                                 <td>{{ v.auction_end.strftime('%b %d, %Y %H:%M') }}</td>
                                 <td><span class="badge bg-success">Active</span></td>
                                 <td>
@@ -267,8 +267,8 @@
                                     {% endif %}
                                 </td>
                                 <td class="fw-semibold">{{ v.title }}</td>
-                                <td>${{ "{:,.2f}".format(v.starting_price) }}</td>
-                                <td class="text-success fw-bold">${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>{{ format_inr(v.starting_price) }}</td>
+                                <td class="text-success fw-bold">{{ format_inr(v.current_price) }}</td>
                                 <td>{{ v.auction_end.strftime('%b %d, %Y %H:%M') }}</td>
                                 <td>
                                     {% if v.owner %}
@@ -376,7 +376,7 @@
                                     {% endif %}
                                 </td>
                                 <td class="fw-semibold text-decoration-line-through text-body-secondary">{{ v.title }}</td>
-                                <td>${{ "{:,.2f}".format(v.current_price) }}</td>
+                                <td>{{ format_inr(v.current_price) }}</td>
                                 <td>
                                     {% if v.owner %}
                                         <span class="badge bg-warning text-dark">
@@ -443,7 +443,7 @@
                                     </span>
                                 </td>
                                 <td>{{ b.vehicle.title }}</td>
-                                <td class="text-success fw-bold">${{ "{:,.2f}".format(b.amount) }}</td>
+                                <td class="text-success fw-bold">{{ format_inr(b.amount) }}</td>
                                 <td>{{ b.created_at.strftime('%b %d, %Y %H:%M') }}</td>
                             </tr>
                             {% endfor %}

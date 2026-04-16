@@ -39,6 +39,34 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
+def format_inr(amount) -> str:
+    """Format numeric values in Indian Rupee style (e.g. Rs 12,34,567.89)."""
+    try:
+        value = float(amount)
+    except (TypeError, ValueError):
+        return "Rs 0.00"
+
+    sign = "-" if value < 0 else ""
+    abs_value = abs(value)
+    integer_part, fractional_part = f"{abs_value:.2f}".split(".")
+
+    if len(integer_part) > 3:
+        last_three = integer_part[-3:]
+        rest = integer_part[:-3]
+        chunks = []
+        while len(rest) > 2:
+            chunks.insert(0, rest[-2:])
+            rest = rest[:-2]
+        if rest:
+            chunks.insert(0, rest)
+        integer_part = ",".join(chunks + [last_three])
+
+    return f"{sign}Rs {integer_part}.{fractional_part}"
+
+
+templates.env.globals["format_inr"] = format_inr
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  WEBSOCKET CONNECTION MANAGER
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

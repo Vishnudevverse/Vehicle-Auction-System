@@ -15,6 +15,20 @@ document.addEventListener('DOMContentLoaded', () => {
 let ws = null;
 let reconnectTimer = null;
 let countdownInterval = null;
+const inrFormatter = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
+function formatINR(value) {
+    const amount = Number.parseFloat(value);
+    if (Number.isNaN(amount)) {
+        return inrFormatter.format(0);
+    }
+    return inrFormatter.format(amount);
+}
 
 function escapeHtml(value) {
     const source = String(value ?? '');
@@ -91,11 +105,7 @@ function updateWsStatus(connected) {
 function handleBidUpdate(msg) {
     const priceEl = document.getElementById(`price-${msg.vehicle_id}`);
     if (priceEl) {
-        const formatted = parseFloat(msg.current_price).toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        });
-        priceEl.textContent = `$${formatted}`;
+        priceEl.textContent = formatINR(msg.current_price);
 
         // flash animation
         priceEl.classList.add('price-flash');
@@ -110,7 +120,7 @@ function handleBidUpdate(msg) {
     updateBidBadge(msg.vehicle_id, msg.bidder_id);
 
     // show toast
-    showToast(`${msg.bidder} bid $${parseFloat(msg.current_price).toLocaleString('en-US', {minimumFractionDigits:2})}`, 'success');
+    showToast(`${msg.bidder} bid ${formatINR(msg.current_price)}`, 'success');
 }
 
 /* ── Update the bid badge on a vehicle card ─── */
@@ -163,8 +173,8 @@ function handleVehicleAdded(msg) {
     const titleSearch = escapeHtml(rawTitle.toLowerCase());
     const descSearch = escapeHtml(rawDescription.toLowerCase());
     const safeEnd = escapeHtml(v.auction_end || '');
-    const price = parseFloat(v.current_price).toLocaleString('en-US', {minimumFractionDigits:2});
-    const startPrice = parseFloat(v.starting_price).toLocaleString('en-US', {minimumFractionDigits:2});
+    const price = formatINR(v.current_price);
+    const startPrice = formatINR(v.starting_price);
 
     // image or placeholder
     let imageHtml;
@@ -202,11 +212,11 @@ function handleVehicleAdded(msg) {
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <small class="text-body-secondary d-block">Starting Price</small>
-                        <span class="text-body-secondary">$${startPrice}</span>
+                        <span class="text-body-secondary">${startPrice}</span>
                     </div>
                     <div class="text-end">
                         <small class="text-success d-block fw-semibold">Current Bid</small>
-                        <span class="fs-5 fw-bold text-success" id="price-${v.id}">$${price}</span>
+                        <span class="fs-5 fw-bold text-success" id="price-${v.id}">${price}</span>
                     </div>
                 </div>
                 <div class="d-flex align-items-center mb-3">
@@ -335,10 +345,10 @@ function initBidButtons() {
             activeVehicleId = newBtn.dataset.vehicleId;
             const currentPrice = parseFloat(newBtn.dataset.currentPrice);
             titleEl.textContent = newBtn.dataset.title;
-            priceEl.textContent = `$${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+            priceEl.textContent = formatINR(currentPrice);
             amountInput.value = '';
-            amountInput.min = currentPrice + 100;
-            amountInput.placeholder = `Min $${(currentPrice + 100).toLocaleString()}`;
+            amountInput.min = currentPrice + 500;
+            amountInput.placeholder = `Min ${formatINR(currentPrice + 500)}`;
             alertEl.className = 'd-none';
             modal.show();
         });
